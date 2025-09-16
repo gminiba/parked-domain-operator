@@ -122,7 +122,7 @@ var _ = Describe("ParkedDomain Controller", func() {
 		templateCM := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "parked-domain-templates",
-				Namespace: testNamespace.Name, // Create it in the test's namespace
+				Namespace: ParkedDomainNamespace,
 			},
 			Data: map[string]string{
 				"default.html": "<html><body><h1>{{DOMAIN_NAME}}</h1></body></html>",
@@ -142,7 +142,6 @@ var _ = Describe("ParkedDomain Controller", func() {
 		It("should successfully reconcile the resource", func() {
 			By("creating the custom resource for the Kind ParkedDomain")
 			ctx := context.Background()
-			//namespace := testNamespace.Name
 
 			// Define the ParkedDomain resource
 			parkedDomain := &parkingv1alpha1.ParkedDomain{
