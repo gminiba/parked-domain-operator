@@ -79,7 +79,7 @@ func (r *ParkedDomainReconciler) reconcileS3Bucket(ctx context.Context, pd *park
 
 	// 1. Get the template from the ConfigMap
 	templateCM := &corev1.ConfigMap{}
-	err = r.Client.Get(ctx, types.NamespacedName{Name: cmName, Namespace: cmNamespace}, templateCM)
+	err = r.Get(ctx, types.NamespacedName{Name: cmName, Namespace: cmNamespace}, templateCM)
 	if err != nil {
 		return "", fmt.Errorf("failed to get template ConfigMap '%s' in namespace '%s': %w", cmName, cmNamespace, err)
 	}

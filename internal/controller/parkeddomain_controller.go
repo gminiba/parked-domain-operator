@@ -70,7 +70,7 @@ func (r *ParkedDomainReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	// 2. Handle Finalizer for cleanup
-	if pd.ObjectMeta.DeletionTimestamp.IsZero() {
+	if pd.DeletionTimestamp.IsZero() {
 		// The object is not being deleted, so we add our finalizer if it doesn't exist.
 		if !controllerutil.ContainsFinalizer(pd, finalizerName) {
 			controllerutil.AddFinalizer(pd, finalizerName)
