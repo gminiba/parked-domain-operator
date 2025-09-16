@@ -17,10 +17,15 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"os"
 	"path/filepath"
+
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/route53"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -202,9 +207,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := (&controller.ParkedDomainReconciler{
+	awsCfg, err := config.LoadDefaultConfig(context.TODO())
+	if err != nil {
+		setupLog.Error(err, "unable to load AWS config")
+		os.Exit(1)
+	}
+
+	if err = (&controller.ParkedDomainReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		// Pass the REAL clients to the reconciler for the production run
+		S3Client:  s3.NewFromConfig(awsCfg),
+		R53Client: route53.NewFromConfig(awsCfg),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ParkedDomain")
 		os.Exit(1)

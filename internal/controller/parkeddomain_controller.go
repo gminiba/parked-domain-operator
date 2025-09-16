@@ -25,9 +25,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/route53"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	parkingv1alpha1 "github.com/gminiba/parked-domain-operator/api/v1alpha1"
@@ -142,15 +139,6 @@ func (r *ParkedDomainReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ParkedDomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	cfg, err := config.LoadDefaultConfig(context.TODO())
-	if err != nil {
-		return err
-	}
-
-	// The real clients satisfy the interfaces, so this assignment is valid.
-	r.S3Client = s3.NewFromConfig(cfg)
-	r.R53Client = route53.NewFromConfig(cfg)
-
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&parkingv1alpha1.ParkedDomain{}).
 		Complete(r)
