@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"os"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -11,6 +12,7 @@ import (
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -99,15 +101,52 @@ var _ = Describe("ParkedDomain Controller", func() {
 		Timeout               = time.Second * 10
 		Interval              = time.Millisecond * 250
 	)
+	var testNamespace *corev1.Namespace
+
+	BeforeEach(func() {
+		// Create a new namespace for each test
+		testNamespace = &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: "test-ns-",
+			},
+		}
+		Expect(k8sClient.Create(context.Background(), testNamespace)).To(Succeed())
+
+		// **SOLUTION PART 1: Set the environment variable for the test**
+		// This variable will be read by os.Getenv() in the reconciler logic.
+		Expect(os.Setenv("TEMPLATE_CONFIGMAP_NAME", "parked-domain-templates")).To(Succeed())
+		// We don't need to set the NAMESPACE var, as our code defaults to the CR's namespace.
+
+		// **SOLUTION PART 2: Create the template ConfigMap for the test**
+		// The reconciler needs to find this ConfigMap when it runs.
+		templateCM := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "parked-domain-templates",
+				Namespace: testNamespace.Name, // Create it in the test's namespace
+			},
+			Data: map[string]string{
+				"default.html": "<html><body><h1>{{DOMAIN_NAME}}</h1></body></html>",
+			},
+		}
+		Expect(k8sClient.Create(context.Background(), templateCM)).To(Succeed())
+	})
+
+	AfterEach(func() {
+		// Delete the namespace to clean up resources
+		Expect(k8sClient.Delete(context.Background(), testNamespace)).To(Succeed())
+		// Unset the environment variable to keep tests isolated
+		Expect(os.Unsetenv("TEMPLATE_CONFIGMAP_NAME")).To(Succeed())
+	})
 
 	Context("When reconciling a resource", func() {
 		It("should successfully reconcile the resource", func() {
 			By("creating the custom resource for the Kind ParkedDomain")
 			ctx := context.Background()
+			//namespace := testNamespace.Name
 
 			// Define the ParkedDomain resource
 			parkedDomain := &parkingv1alpha1.ParkedDomain{
-				TypeMeta:   metav1.TypeMeta{APIVersion: "parking.yourcompany.com/v1alpha1", Kind: "ParkedDomain"},
+				TypeMeta:   metav1.TypeMeta{APIVersion: "parking.minibaev.eu/v1alpha1", Kind: "ParkedDomain"},
 				ObjectMeta: metav1.ObjectMeta{Name: ParkedDomainName, Namespace: ParkedDomainNamespace},
 				Spec:       parkingv1alpha1.ParkedDomainSpec{DomainName: DomainName},
 			}
