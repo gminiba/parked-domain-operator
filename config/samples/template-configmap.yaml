@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: parked-domain-templates
+  namespace: parked-domain-operator-system #<-- Deploy to your operator's namespace
+data:
+  default.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Welcome to {{DOMAIN_NAME}}</title>
+      <style>
+        body { font-family: sans-serif; text-align: center; padding-top: 50px; }
+      </style>
+    </head>
+    <body>
+      <h1>This is {{DOMAIN_NAME}}</h1>
+      <p>This domain is currently parked.</p>
+    </body>
+    </html>
+  
+  special_promo.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Special Promotion at {{DOMAIN_NAME}}!</title>
+    </head>
+    <body>
+      <h1>A special promotion is coming soon to {{DOMAIN_NAME}}!</h1>
+      <p>Check back later for more details.</p>
+    </body>
+    </html>

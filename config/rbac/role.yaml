@@ -1,0 +1,40 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - parking.minibaev.eu
+  resources:
+  - parkeddomains
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - parking.minibaev.eu
+  resources:
+  - parkeddomains/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - parking.minibaev.eu
+  resources:
+  - parkeddomains/status
+  verbs:
+  - get
+  - patch
+  - update

@@ -1,0 +1,12 @@
+apiVersion: parking.minibaev.eu/v1alpha1
+kind: ParkedDomain
+metadata:
+  labels:
+    app.kubernetes.io/name: parked-domain-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: parkeddomain-sample
+spec:
+  domainName: "my-cool-project.com"
+  region: "eu-central-1"
+  # Optional: specify a template other than the default "index.html"
+  templateName: "special_promo_template.html"
