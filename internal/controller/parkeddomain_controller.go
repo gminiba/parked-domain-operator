@@ -38,9 +38,10 @@ const finalizerName = "parking.minibaev.eu/finalizer"
 // ParkedDomainReconciler reconciles a ParkedDomain object
 type ParkedDomainReconciler struct {
 	client.Client
-	Scheme    *runtime.Scheme
-	S3Client  *s3.Client
-	R53Client *route53.Client
+	Scheme *runtime.Scheme
+
+	S3Client  S3ClientAPI
+	R53Client R53ClientAPI
 }
 
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
@@ -141,11 +142,12 @@ func (r *ParkedDomainReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ParkedDomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// Note: Initialize AWS clients here or in main.go to avoid re-creating them on every reconcile.
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
 		return err
 	}
+
+	// The real clients satisfy the interfaces, so this assignment is valid.
 	r.S3Client = s3.NewFromConfig(cfg)
 	r.R53Client = route53.NewFromConfig(cfg)
 
