@@ -91,6 +91,21 @@ func (m *MockR53Client) DeleteHostedZone(ctx context.Context, params *route53.De
 	return &route53.DeleteHostedZoneOutput{}, nil
 }
 
+func (m *MockR53Client) ListHostedZonesByName(ctx context.Context, params *route53.ListHostedZonesByNameInput, optFns ...func(*route53.Options)) (*route53.ListHostedZonesByNameOutput, error) {
+	// Simulate no zone being found initially
+	return &route53.ListHostedZonesByNameOutput{
+		HostedZones: []r53types.HostedZone{},
+	}, nil
+}
+
+func (m *MockR53Client) GetHostedZone(ctx context.Context, params *route53.GetHostedZoneInput, optFns ...func(*route53.Options)) (*route53.GetHostedZoneOutput, error) {
+	// This would be used if you were testing the "adopt" logic
+	return &route53.GetHostedZoneOutput{
+		HostedZone:    &r53types.HostedZone{Id: params.Id},
+		DelegationSet: &r53types.DelegationSet{NameServers: []string{"ns-1.awsdns.com"}},
+	}, nil
+}
+
 // --- Test Suite ---
 
 var _ = Describe("ParkedDomain Controller", func() {

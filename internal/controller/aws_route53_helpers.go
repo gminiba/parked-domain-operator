@@ -126,34 +126,49 @@ func (r *ParkedDomainReconciler) reconcileRoute53Zone(ctx context.Context, pd *p
 	logger := log.FromContext(ctx)
 	domainName := pd.Spec.DomainName
 
-	// This is a simplified check. A robust implementation would use ListHostedZonesByName.
-	if pd.Status.ZoneID != "" {
-		logger.Info("Route 53 Hosted Zone already seems to exist, skipping creation", "ZoneID", pd.Status.ZoneID)
-		return pd.Status.ZoneID, pd.Status.NameServers, nil
+	// Check if the Hosted Zone already exists.
+	listInput := &route53.ListHostedZonesByNameInput{
+		DNSName: aws.String(domainName),
+	}
+	listOutput, err := r.R53Client.ListHostedZonesByName(ctx, listInput)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to list hosted zones: %w", err)
 	}
 
+	// If a zone with the exact name is found, adopt it.
+	if len(listOutput.HostedZones) > 0 && *listOutput.HostedZones[0].Name == domainName+"." {
+		existingZone := listOutput.HostedZones[0]
+		zoneID := strings.Replace(*existingZone.Id, "/hostedzone/", "", 1)
+		logger.Info("Found existing Route 53 Hosted Zone, adopting it.", "ZoneID", zoneID)
+
+		// To get the nameservers for an existing zone, we need another API call.
+		getZoneOutput, err := r.R53Client.GetHostedZone(ctx, &route53.GetHostedZoneInput{Id: existingZone.Id})
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to get details for existing hosted zone: %w", err)
+		}
+
+		var nameservers []string
+		nameservers = append(nameservers, getZoneOutput.DelegationSet.NameServers...)
+
+		return zoneID, nameservers, nil
+	}
+
+	// If no zone was found, proceed to create it.
+	logger.Info("No existing Hosted Zone found, creating a new one.")
 	callerReference := fmt.Sprintf("parkeddomain-operator-%s-%d", pd.Name, time.Now().Unix())
 	createZoneInput := &route53.CreateHostedZoneInput{
 		Name:            aws.String(domainName),
 		CallerReference: aws.String(callerReference),
 	}
 
-	output, err := r.R53Client.CreateHostedZone(ctx, createZoneInput)
+	createOutput, err := r.R53Client.CreateHostedZone(ctx, createZoneInput)
 	if err != nil {
-		// Handle case where the zone already exists gracefully
-		var aee *r53types.HostedZoneAlreadyExists
-		if errors.As(err, &aee) {
-			logger.Info("HostedZoneAlreadyExists error caught, but we will proceed by finding the existing zone.")
-			// TODO: Implement ListHostedZonesByName to find and return the existing Zone ID.
-			// This is a placeholder for that logic.
-			return "EXISTING_ZONE_ID_PLACEHOLDER", []string{}, nil
-		}
 		return "", nil, fmt.Errorf("failed to create Route 53 Hosted Zone: %w", err)
 	}
 
-	zoneID := strings.Replace(*output.HostedZone.Id, "/hostedzone/", "", 1)
+	zoneID := strings.Replace(*createOutput.HostedZone.Id, "/hostedzone/", "", 1)
 	var nameservers []string
-	nameservers = append(nameservers, output.DelegationSet.NameServers...)
+	nameservers = append(nameservers, createOutput.DelegationSet.NameServers...)
 
 	logger.Info("Successfully created Route 53 Hosted Zone", "ZoneID", zoneID)
 	return zoneID, nameservers, nil
