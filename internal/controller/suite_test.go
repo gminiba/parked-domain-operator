@@ -8,9 +8,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	// Corrected import paths based on your previous logs
 	parkingv1alpha1 "github.com/gminiba/parked-domain-operator/api/v1alpha1"
-
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -32,6 +30,16 @@ func TestControllers(t *testing.T) {
 	RunSpecs(t, "Controller Suite")
 }
 
+// MockS3ClientFactory produces our mock S3 client for tests.
+type MockS3ClientFactory struct {
+	MockS3 S3ClientAPI
+}
+
+func (f *MockS3ClientFactory) GetClient(ctx context.Context, region string) (S3ClientAPI, error) {
+	// In tests, we just return the single mock client, ignoring the region.
+	return f.MockS3, nil
+}
+
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
@@ -44,7 +52,6 @@ var _ = BeforeSuite(func() {
 	}
 
 	var err error
-	// cfg is defined in this file, protected by Gomega's Eventually
 	cfg, err = testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
@@ -58,7 +65,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
-	// === MANAGER AND RECONCILER SETUP (ONE-TIME) ===
 	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme: scheme.Scheme,
 	})
@@ -68,7 +74,9 @@ var _ = BeforeSuite(func() {
 		Client:    k8sManager.GetClient(),
 		Scheme:    k8sManager.GetScheme(),
 		R53Client: &MockR53Client{},
-		S3Client:  &MockS3Client{},
+		S3ClientFactory: &MockS3ClientFactory{
+			MockS3: &MockS3Client{},
+		},
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -77,6 +85,7 @@ var _ = BeforeSuite(func() {
 		err = k8sManager.Start(ctx)
 		Expect(err).ToNot(HaveOccurred(), "failed to run manager")
 	}()
+
 })
 
 var _ = AfterSuite(func() {

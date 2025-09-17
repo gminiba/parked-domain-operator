@@ -19,7 +19,7 @@ import (
 	parkingv1alpha1 "github.com/gminiba/parked-domain-operator/api/v1alpha1"
 )
 
-// --- Mock AWS Client Implementations ---
+// --- Mock AWS Client Implementations --
 
 // MockS3Client simulates the S3 client for tests.
 type MockS3Client struct {

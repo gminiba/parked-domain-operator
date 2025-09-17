@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	parkingv1alpha1 "github.com/gminiba/parked-domain-operator/api/v1alpha1"
@@ -30,15 +29,14 @@ func (r *ParkedDomainReconciler) reconcileS3Bucket(ctx context.Context, pd *park
 	}
 	logger = logger.WithValues("region", region)
 
-	// Create a new AWS config and S3 client specifically for this resource's region.
-	regionCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	// Get a region-specific client from the factory.
+	s3Client, err := r.S3ClientFactory.GetClient(ctx, region)
 	if err != nil {
-		return "", fmt.Errorf("failed to load AWS config for region %s: %w", region, err)
+		return "", err
 	}
-	regionSpecificS3Client := s3.NewFromConfig(regionCfg)
 
 	// 1. Check if bucket exists and create if not.
-	_, err = regionSpecificS3Client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucketName)})
+	_, err = s3Client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucketName)})
 	if err != nil {
 		var nfe *s3types.NotFound
 		if errors.As(err, &nfe) {
@@ -49,7 +47,7 @@ func (r *ParkedDomainReconciler) reconcileS3Bucket(ctx context.Context, pd *park
 					LocationConstraint: s3types.BucketLocationConstraint(region),
 				}
 			}
-			if _, createErr := regionSpecificS3Client.CreateBucket(ctx, createBucketInput); createErr != nil {
+			if _, createErr := s3Client.CreateBucket(ctx, createBucketInput); createErr != nil {
 				return "", fmt.Errorf("failed to create S3 bucket: %w", createErr)
 			}
 		} else {
@@ -74,7 +72,6 @@ func (r *ParkedDomainReconciler) reconcileS3Bucket(ctx context.Context, pd *park
 	}
 
 	templateCM := &corev1.ConfigMap{}
-	// Use the embedded client's Get method directly (r.Get instead of r.Client.Get).
 	err = r.Get(ctx, types.NamespacedName{Name: cmName, Namespace: cmNamespace}, templateCM)
 	if err != nil {
 		return "", fmt.Errorf("failed to get template ConfigMap '%s' in namespace '%s': %w", cmName, cmNamespace, err)
@@ -87,7 +84,7 @@ func (r *ParkedDomainReconciler) reconcileS3Bucket(ctx context.Context, pd *park
 
 	finalContent := strings.ReplaceAll(templateContent, "{{DOMAIN_NAME}}", pd.Spec.DomainName)
 
-	_, err = regionSpecificS3Client.PutObject(ctx, &s3.PutObjectInput{
+	_, err = s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(bucketName),
 		Key:         aws.String("index.html"),
 		Body:        bytes.NewReader([]byte(finalContent)),
@@ -98,7 +95,7 @@ func (r *ParkedDomainReconciler) reconcileS3Bucket(ctx context.Context, pd *park
 	}
 
 	// 3. Enable static website hosting.
-	_, err = regionSpecificS3Client.PutBucketWebsite(ctx, &s3.PutBucketWebsiteInput{
+	_, err = s3Client.PutBucketWebsite(ctx, &s3.PutBucketWebsiteInput{
 		Bucket:               aws.String(bucketName),
 		WebsiteConfiguration: &s3types.WebsiteConfiguration{IndexDocument: &s3types.IndexDocument{Suffix: aws.String("index.html")}},
 	})
@@ -108,7 +105,7 @@ func (r *ParkedDomainReconciler) reconcileS3Bucket(ctx context.Context, pd *park
 
 	// 4. Apply a public-read bucket policy.
 	policy := fmt.Sprintf(`{"Version":"2012-10-17","Statement":[{"Sid":"PublicReadGetObject","Effect":"Allow","Principal":"*","Action":"s3:GetObject","Resource":"arn:aws:s3:::%s/*"}]}`, bucketName)
-	_, err = regionSpecificS3Client.PutBucketPolicy(ctx, &s3.PutBucketPolicyInput{
+	_, err = s3Client.PutBucketPolicy(ctx, &s3.PutBucketPolicyInput{
 		Bucket: aws.String(bucketName),
 		Policy: aws.String(policy),
 	})
@@ -135,17 +132,16 @@ func (r *ParkedDomainReconciler) cleanupS3Bucket(ctx context.Context, pd *parkin
 	}
 	logger = logger.WithValues("region", region)
 
-	// Create a new, region-specific S3 client for cleanup.
-	regionCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	// Get a region-specific client from the factory for cleanup.
+	s3Client, err := r.S3ClientFactory.GetClient(ctx, region)
 	if err != nil {
-		return fmt.Errorf("failed to load AWS config for region %s: %w", region, err)
+		return err
 	}
-	regionSpecificS3Client := s3.NewFromConfig(regionCfg)
 
 	logger.Info("Starting S3 bucket cleanup", "BucketName", bucketName)
 
 	// Empty the bucket before deletion.
-	paginator := s3.NewListObjectsV2Paginator(regionSpecificS3Client, &s3.ListObjectsV2Input{Bucket: aws.String(bucketName)})
+	paginator := s3.NewListObjectsV2Paginator(s3Client, &s3.ListObjectsV2Input{Bucket: aws.String(bucketName)})
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
@@ -162,7 +158,7 @@ func (r *ParkedDomainReconciler) cleanupS3Bucket(ctx context.Context, pd *parkin
 			for _, obj := range page.Contents {
 				objectsToDelete = append(objectsToDelete, s3types.ObjectIdentifier{Key: obj.Key})
 			}
-			_, err := regionSpecificS3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+			_, err := s3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
 				Bucket: aws.String(bucketName),
 				Delete: &s3types.Delete{Objects: objectsToDelete},
 			})
@@ -173,7 +169,7 @@ func (r *ParkedDomainReconciler) cleanupS3Bucket(ctx context.Context, pd *parkin
 	}
 
 	// Delete the bucket.
-	_, err = regionSpecificS3Client.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucketName)})
+	_, err = s3Client.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucketName)})
 	if err != nil {
 		// If the bucket doesn't exist, cleanup is successful.
 		var nsb *s3types.NoSuchBucket

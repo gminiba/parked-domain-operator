@@ -30,15 +30,19 @@ import (
 	parkingv1alpha1 "github.com/gminiba/parked-domain-operator/api/v1alpha1"
 )
 
-const finalizerName = "parking.minibaev.eu/finalizer"
+const (
+	finalizerName = "parking.minibaev.eu/finalizer"
+	DefaultRegion = "eu-central-1"
+)
 
 // ParkedDomainReconciler reconciles a ParkedDomain object
 type ParkedDomainReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 
-	S3Client  S3ClientAPI
-	R53Client R53ClientAPI
+	S3Client        S3ClientAPI
+	R53Client       R53ClientAPI
+	S3ClientFactory S3ClientFactoryAPI
 }
 
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch

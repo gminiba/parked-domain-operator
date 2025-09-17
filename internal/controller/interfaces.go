@@ -7,6 +7,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
+type S3ClientFactoryAPI interface {
+	GetClient(ctx context.Context, region string) (S3ClientAPI, error)
+}
+
 // R53ClientAPI defines the interface for the Route53 client.
 type R53ClientAPI interface {
 	CreateHostedZone(ctx context.Context, params *route53.CreateHostedZoneInput, optFns ...func(*route53.Options)) (*route53.CreateHostedZoneOutput, error)

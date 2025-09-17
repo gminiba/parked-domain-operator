@@ -35,7 +35,7 @@ func (r *ParkedDomainReconciler) reconcileRoute53ARecord(ctx context.Context, pd
 
 	region := pd.Spec.Region
 	if region == "" {
-		region = "eu-central-1"
+		region = DefaultRegion
 	}
 
 	s3HostedZoneID := getS3WebsiteHostedZoneID(region)
